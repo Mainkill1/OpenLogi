@@ -247,7 +247,7 @@ fn detail_navigation(
                 .child(div().flex_1().min_w_0().truncate().child(label))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.active_tab = tab;
-                    if tab == DetailTab::Pointer {
+                    if matches!(tab, DetailTab::Pointer | DetailTab::Buttons) {
                         AppState::refresh_onboard(cx);
                     }
                     cx.notify();
@@ -282,8 +282,45 @@ fn buttons_tab(
         .min_w_0()
         .min_h_0()
         .children(button_profile_scope_bar(profile_icons, app_catalog, cx))
+        .children(button_control_mode_bar(cx))
         .children(gshift_layer_bar(cx))
         .child(mouse_model.clone())
+}
+
+fn button_control_mode_bar(cx: &gpui::App) -> Option<impl IntoElement> {
+    let state = AppState::try_read(cx)?;
+    state.current_gaming_layout()?;
+    let (memory, selector) = onboard_selector(state, cx)?;
+    let pal = theme::palette(cx);
+    Some(
+        v_flex()
+            .w_full()
+            .flex_shrink_0()
+            .px_5()
+            .pt_3()
+            .gap_1()
+            .child(
+                h_flex()
+                    .gap_3()
+                    .items_center()
+                    .child(
+                        div()
+                            .flex_none()
+                            .text_caption()
+                            .text_color(pal.text_muted)
+                            .child(tr!("pointer.onboard_active")),
+                    )
+                    .child(selector.small().w_auto().min_w_0()),
+            )
+            .when(matches!(memory, Some(OnboardMemory::Profile(_))), |this| {
+                this.child(
+                    div()
+                        .text_caption()
+                        .text_color(pal.text_muted)
+                        .child(tr!("pointer.onboard_profile_description")),
+                )
+            }),
+    )
 }
 
 fn gshift_layer_bar(cx: &mut Context<AppView>) -> Option<impl IntoElement> {
@@ -471,6 +508,31 @@ fn pointer_tab(
 
 fn onboard_card(pal: Palette, cx: &mut Context<AppView>) -> Option<impl IntoElement> {
     let state = AppState::try_read(cx)?;
+    let (memory, selector) = onboard_selector(state, cx)?;
+    let memory_description = if memory == Some(OnboardMemory::Off) {
+        tr!("pointer.onboard_host_description")
+    } else {
+        tr!("pointer.onboard_profile_description")
+    };
+    Some(
+        PanelCard::new(
+            tr!("pointer.onboard_memory"),
+            Icon::empty().path("action-icons/mouse.svg"),
+            v_flex().gap_4().child(setting_row(
+                tr!("pointer.onboard_active"),
+                memory_description,
+                selector,
+                pal,
+            )),
+        )
+        .fill(),
+    )
+}
+
+fn onboard_selector(
+    state: &AppState,
+    cx: &gpui::App,
+) -> Option<(Option<OnboardMemory>, ButtonGroup)> {
     if !state.current_onboard_supported() {
         return None;
     }
@@ -479,7 +541,6 @@ fn onboard_card(pal: Palette, cx: &mut Context<AppView>) -> Option<impl IntoElem
         _ => None,
     };
     let memory = state.current_onboard_active();
-    let host = memory == Some(OnboardMemory::Off);
     // The agent takes control only of a model whose buttons it knows.
     let openlogi = state.current_gaming_layout().map(|_| {
         (
@@ -500,24 +561,10 @@ fn onboard_card(pal: Palette, cx: &mut Context<AppView>) -> Option<impl IntoElem
             .collect()
     });
 
-    let memory_description = if host {
-        tr!("pointer.onboard_host_description")
-    } else {
-        tr!("pointer.onboard_profile_description")
-    };
-    Some(
-        PanelCard::new(
-            tr!("pointer.onboard_memory"),
-            Icon::empty().path("action-icons/mouse.svg"),
-            v_flex().gap_4().child(setting_row(
-                tr!("pointer.onboard_active"),
-                memory_description,
-                onboard_memory_control(memory, openlogi.into_iter().chain(profiles).collect(), cx),
-                pal,
-            )),
-        )
-        .fill(),
-    )
+    Some((
+        memory,
+        onboard_memory_control(memory, openlogi.into_iter().chain(profiles).collect(), cx),
+    ))
 }
 
 fn setting_row(
@@ -550,7 +597,7 @@ fn onboard_memory_control(
     selected: Option<OnboardMemory>,
     choices: Vec<(OnboardMemory, String)>,
     cx: &gpui::App,
-) -> impl IntoElement {
+) -> ButtonGroup {
     let values: Vec<OnboardMemory> = choices.iter().map(|(value, _)| *value).collect();
     ButtonGroup::new("onboard-memory")
         .w_full()
@@ -560,9 +607,22 @@ fn onboard_memory_control(
                 .into_iter()
                 .enumerate()
                 .map(|(index, (value, label))| {
+                    let selector = match value {
+                        OnboardMemory::Off => "onboard-mode-host".to_string(),
+                        OnboardMemory::Profile(profile) => {
+                            format!("onboard-mode-profile-{profile}")
+                        }
+                    };
                     Button::new(("onboard-memory", index))
                         .flex_1()
-                        .label(label)
+                        .accessibility_label(label.clone())
+                        .tooltip(label.clone())
+                        .child(
+                            div()
+                                .debug_selector(move || selector.clone())
+                                .truncate()
+                                .child(label),
+                        )
                         .selected(selected == Some(value))
                         .selected_segment(selected == Some(value), cx)
                 }),

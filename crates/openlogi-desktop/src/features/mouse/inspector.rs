@@ -875,7 +875,11 @@ fn action_library(
             pal,
         ))
         .child(editor_section(tr!("actions.actions"), pal))
-        .child(control_input(picker.search).cleanable(true))
+        .child(
+            div()
+                .debug_selector(move || format!("{id_prefix}-action-search"))
+                .child(control_input(picker.search).cleanable(true)),
+        )
         .child(
             v_flex()
                 .gap_0p5()

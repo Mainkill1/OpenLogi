@@ -4,7 +4,7 @@
 //! label layout separate from the GPUI element tree in `view`.
 
 use openlogi_assets::ImageEntry;
-use openlogi_core::binding::{ButtonId, GamingLayout};
+use openlogi_core::binding::{ButtonId, G502_HERO, GamingLayout};
 
 use super::hotspots::{Hotspot, MOUSE_MODEL_SIZE, MouseControlId};
 use super::leader_lines::{self, Label, Side};
@@ -80,6 +80,15 @@ pub fn asset_has_button_labels(asset: &ResolvedAsset, layout: Option<&GamingLayo
                 .filter_map(|key| asset.metadata.image(key))
                 .any(|image| !gaming_controls(image, layout).is_empty())
         })
+}
+
+/// Whether the Buttons panel can expose every remappable button using this art.
+pub(super) fn asset_covers_button_layout(asset: &ResolvedAsset, layout: &GamingLayout) -> bool {
+    let (width, height) = asset_dimensions_for_png(asset, MOUSE_MODEL_SIZE.1, f32::MAX);
+    let hotspots = asset_hotspots_for_png(asset, Some(layout), width, height);
+    layout
+        .remappable()
+        .all(|button| hotspots.iter().any(|hotspot| hotspot.id == button.into()))
 }
 
 #[expect(
@@ -435,6 +444,11 @@ pub fn fallback_hotspots(layout: Option<&GamingLayout>, thumbwheel: bool) -> Vec
             hotspots.push(hotspot);
         }
     }
+    if layout == Some(&G502_HERO) {
+        hotspots
+            .iter_mut()
+            .for_each(super::hotspots::place_g502_hero_hotspot);
+    }
     hotspots
 }
 
@@ -580,6 +594,52 @@ mod tests {
         let hotspots = asset_hotspots_for_png(&asset, layout, w, h);
         assert!(!hotspots.iter().any(|h| h.id == ButtonId::Back.into()));
         assert!(hotspots.iter().any(|h| h.id == ButtonId::G7.into()));
+    }
+
+    #[test]
+    fn wired_g502_hero_needs_the_diagram_when_side_art_is_missing() {
+        let layout = GamingLayout::for_model_key("0c08b").expect("the wired HERO layout");
+        let mut asset = g502_asset();
+        let assignment = |number| Assignment {
+            slot_id: format!("g502hero_g{number}_m1"),
+            slot_name: String::new(),
+            marker: Point { x: 100., y: 100. },
+            label: Direction::default(),
+        };
+        asset.metadata.images[0]
+            .assignments
+            .extend([8, 9, 11].map(assignment));
+        asset.metadata.images[1]
+            .assignments
+            .extend([5, 6].map(assignment));
+        assert!(asset_covers_button_layout(&asset, layout));
+
+        asset.side_view = None;
+        assert!(!asset_covers_button_layout(&asset, layout));
+        let hotspots = fallback_hotspots(Some(layout), false);
+        assert_eq!(hotspots.len(), 9);
+        for button in layout.remappable() {
+            assert!(hotspots.iter().any(|hotspot| hotspot.id == button.into()));
+        }
+    }
+
+    #[test]
+    fn wired_g502_hero_diagram_matches_the_button_order() {
+        let layout = GamingLayout::for_model_key("0c08b").expect("the wired HERO layout");
+        let hotspots = fallback_hotspots(Some(layout), false);
+        let center = |button: ButtonId| {
+            hotspots
+                .iter()
+                .find(|hotspot| hotspot.id == button.into())
+                .expect("a remappable HERO button has a hotspot")
+                .center()
+        };
+
+        assert!(center(ButtonId::G6).1 < center(ButtonId::Forward).1);
+        assert!(center(ButtonId::Forward).1 < center(ButtonId::Back).1);
+        assert!(center(ButtonId::G8).1 < center(ButtonId::G7).1);
+        assert!(center(ButtonId::WheelTiltLeft).0 < center(ButtonId::MiddleClick).0);
+        assert!(center(ButtonId::MiddleClick).0 < center(ButtonId::WheelTiltRight).0);
     }
 
     /// A gaming mouse without an image keeps only what it can deliver: the
