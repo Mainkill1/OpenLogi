@@ -13,6 +13,7 @@ use gpui_kit::base::{Button as BaseButton, ElementExt as _};
 use gpui_kit::component::{
     h_flex,
     input::{InputEvent, InputState},
+    tooltip::Tooltip,
     v_flex,
 };
 use openlogi_core::binding::{Action, ButtonId, GamingLayout, GestureDirection};
@@ -1058,13 +1059,16 @@ impl RenderOnce for HotspotTrigger {
         let click_view = view.clone();
         let hotspot = self.hotspot;
         let btn = hotspot.id;
+        let button_name = tr!(btn.translation_key());
 
         BaseButton::new(self.id)
+            .debug_selector(move || format!("mouse-hotspot-{btn:?}"))
             .selected(selected)
             .accessibility_label(tr!(
                 "actions.bind_control",
-                name => tr!(btn.translation_key())
+                name => button_name
             ))
+            .tooltip(move |window, cx| Tooltip::new(button_name.clone()).build(window, cx))
             .aria_selected(selected)
             .flex()
             .items_center()

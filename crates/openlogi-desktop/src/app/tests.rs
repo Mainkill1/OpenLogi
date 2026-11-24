@@ -282,6 +282,76 @@ fn the_pointer_tab_offers_the_smooth_wheel(cx: &mut gpui::TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn wired_g502_hero_buttons_offer_software_control_and_assign_the_chosen_button(
+    cx: &mut gpui::TestAppContext,
+) {
+    use gpui::{Modifiers, px, size};
+    use openlogi_core::binding::{Action, ButtonId};
+    use openlogi_core::config::{Config, OnboardMemory};
+
+    use crate::services::i18n::LOCALE_LOCK;
+    use crate::state::{AppState, tests::direct_inventory};
+
+    let _locale = LOCALE_LOCK.lock().unwrap();
+    let mut inventory = direct_inventory([0xa3, 0x93, 0xca, 0xe0]);
+    inventory.receiver.product_id = 0xc08b;
+    let mouse = &mut inventory.paired[0];
+    mouse.codename = Some("G502 HERO".into());
+    mouse.capabilities = Some(Capabilities::from_feature_ids(&[0x2201, 0x8100, 0x8110]));
+    mouse.model_info = Some(DeviceModelInfo {
+        entity_count: 2,
+        serial_number: None,
+        unit_id: [0xa3, 0x93, 0xca, 0xe0],
+        transports: DeviceTransports {
+            usb: true,
+            ..DeviceTransports::default()
+        },
+        model_ids: [0xc08b, 0, 0],
+        extended_model_id: 0,
+    });
+    let (app, cx) = open_device_detail(cx, inventory, Config::ephemeral());
+    cx.simulate_resize(size(px(900.), px(900.)));
+    cx.update(|window, cx| {
+        app.update(cx, |view, cx| {
+            view.active_tab = DetailTab::Buttons;
+            cx.notify();
+        });
+        window.draw(cx).clear(cx);
+    });
+
+    for selector in [
+        "onboard-mode-host",
+        "mouse-hotspot-Button(G8)",
+        "inspector-current-action",
+        "inspector-action-action-search",
+    ] {
+        let target = cx.debug_bounds(selector).expect(selector);
+        cx.simulate_click(target.center(), Modifiers::none());
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+    }
+    cx.simulate_input("Copy");
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let copy = cx
+        .debug_bounds("inspector-action-Copy")
+        .expect("Copy action");
+    cx.simulate_click(copy.center(), Modifiers::none());
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+
+    cx.update(|_, cx| {
+        let state = AppState::try_read(cx).expect("state is installed");
+        assert_eq!(state.current_onboard_memory(), Some(OnboardMemory::Off));
+        assert_eq!(
+            state.button_bindings().get(&ButtonId::G8),
+            Some(&Action::Copy)
+        );
+        assert_eq!(
+            state.button_bindings().get(&ButtonId::G7),
+            Some(&Action::PreviousDpiPreset)
+        );
+    });
+}
+
 /// Each detail tab opens at its top. One call site builds every tab's
 /// scrolling body, so with a shared scroll position the Actions Ring opened
 /// as far down as the Pointer tab had been scrolled, its title hidden under

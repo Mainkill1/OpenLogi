@@ -90,6 +90,18 @@ pub(super) fn gaming_fallback_hotspot(button: ButtonId) -> Option<Hotspot> {
     })
 }
 
+/// Put the HERO's thumb buttons and DPI pair in physical order on the schematic.
+pub(super) fn place_g502_hero_hotspot(hotspot: &mut Hotspot) {
+    hotspot.y = match hotspot.id.button() {
+        Some(ButtonId::G6) => 205.,
+        Some(ButtonId::Forward) => 261.,
+        Some(ButtonId::Back) => 324.,
+        Some(ButtonId::G8) => 60.,
+        Some(ButtonId::G7) => 120.,
+        _ => hotspot.y,
+    };
+}
+
 /// Fallback hotspot layout for the no-asset path (synthetic silhouette).
 /// Primary L/R click are intentionally absent — Logi doesn't expose them
 /// as remappable and we follow the same rule everywhere.

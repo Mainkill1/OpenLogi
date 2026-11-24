@@ -4,7 +4,7 @@
 //! label layout separate from the GPUI element tree in `view`.
 
 use openlogi_assets::ImageEntry;
-use openlogi_core::binding::{ButtonId, GamingLayout};
+use openlogi_core::binding::{ButtonId, G502_HERO, GamingLayout};
 
 use super::hotspots::{Hotspot, MOUSE_MODEL_SIZE, MouseControlId};
 use super::leader_lines::{self, Label, Side};
@@ -444,6 +444,11 @@ pub fn fallback_hotspots(layout: Option<&GamingLayout>, thumbwheel: bool) -> Vec
             hotspots.push(hotspot);
         }
     }
+    if layout == Some(&G502_HERO) {
+        hotspots
+            .iter_mut()
+            .for_each(super::hotspots::place_g502_hero_hotspot);
+    }
     hotspots
 }
 
@@ -616,6 +621,25 @@ mod tests {
         for button in layout.remappable() {
             assert!(hotspots.iter().any(|hotspot| hotspot.id == button.into()));
         }
+    }
+
+    #[test]
+    fn wired_g502_hero_diagram_matches_the_button_order() {
+        let layout = GamingLayout::for_model_key("0c08b").expect("the wired HERO layout");
+        let hotspots = fallback_hotspots(Some(layout), false);
+        let center = |button: ButtonId| {
+            hotspots
+                .iter()
+                .find(|hotspot| hotspot.id == button.into())
+                .expect("a remappable HERO button has a hotspot")
+                .center()
+        };
+
+        assert!(center(ButtonId::G6).1 < center(ButtonId::Forward).1);
+        assert!(center(ButtonId::Forward).1 < center(ButtonId::Back).1);
+        assert!(center(ButtonId::G8).1 < center(ButtonId::G7).1);
+        assert!(center(ButtonId::WheelTiltLeft).0 < center(ButtonId::MiddleClick).0);
+        assert!(center(ButtonId::MiddleClick).0 < center(ButtonId::WheelTiltRight).0);
     }
 
     /// A gaming mouse without an image keeps only what it can deliver: the

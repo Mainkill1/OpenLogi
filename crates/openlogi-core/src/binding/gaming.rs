@@ -95,7 +95,7 @@ pub const G502_LIGHTSPEED: GamingLayout = GamingLayout {
 ///
 /// [button spy capture]: https://github.com/libratbag/libratbag/issues/1831
 /// [Logitech setup guide]: https://www.logitech.com/assets/65517/g502-hero.pdf#page=9
-const G502_HERO: GamingLayout = GamingLayout {
+pub const G502_HERO: GamingLayout = GamingLayout {
     model_keys: &["0c08b"],
     slots: G502_LIGHTSPEED.slots,
     stock_dpi_presets: &[1200, 2400, 3200, 6400],
