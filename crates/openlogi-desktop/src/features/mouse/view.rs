@@ -20,8 +20,9 @@ use openlogi_core::binding::{Action, ButtonId, GamingLayout, GestureDirection};
 use super::editor_mode::{EditorMode, PickerDrafts};
 use super::force_sensing::{ForceSensingFacts, ForceSensingSlider, PressForce};
 use super::geometry::{
-    LABEL_H, LabelDistribution, asset_dimensions_for_png, asset_has_button_labels,
-    asset_hotspots_for_png, fallback_hotspots, labels_fit, labels_from_hotspots, side_view_width,
+    LABEL_H, LabelDistribution, asset_covers_button_layout, asset_dimensions_for_png,
+    asset_has_button_labels, asset_hotspots_for_png, fallback_hotspots, labels_fit,
+    labels_from_hotspots, side_view_width,
 };
 use super::hotspots::{Hotspot, MOUSE_MODEL_SIZE, MouseControlId};
 use super::inspector::{
@@ -115,7 +116,12 @@ impl<'a> MouseWorkspaceData<'a> {
         AppState::try_read(cx).map(|state| Self {
             asset: state
                 .current_record()
-                .and_then(|record| record.asset.as_ref()),
+                .and_then(|record| record.asset.as_ref())
+                .filter(|asset| {
+                    state
+                        .current_gaming_layout()
+                        .is_none_or(|layout| asset_covers_button_layout(asset, layout))
+                }),
             layout: state.current_button_layout(),
             active: state
                 .active_button()

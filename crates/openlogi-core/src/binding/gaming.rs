@@ -89,6 +89,18 @@ pub const G502_LIGHTSPEED: GamingLayout = GamingLayout {
     stock_dpi_presets: &[400, 800, 1600, 3200, 6400],
 };
 
+/// Wired G502 HERO (USB PID `0xc08b`). Its [button spy capture] gives the same
+/// slots and control functions as the G502 LIGHTSPEED. The DPI levels come
+/// from Profile 1 in the [Logitech setup guide].
+///
+/// [button spy capture]: https://github.com/libratbag/libratbag/issues/1831
+/// [Logitech setup guide]: https://www.logitech.com/assets/65517/g502-hero.pdf#page=9
+const G502_HERO: GamingLayout = GamingLayout {
+    model_keys: &["0c08b"],
+    slots: G502_LIGHTSPEED.slots,
+    stock_dpi_presets: &[1200, 2400, 3200, 6400],
+};
+
 /// G903 LIGHTSPEED (wpid `0x4087`), dumped in #2178. Ambidextrous: the left
 /// side pair is Back and Forward, the right side pair is G6 and G7, and the
 /// DPI keys are G8 (down, left) and G9 (up, right). Slot 11 never reports.
@@ -129,7 +141,7 @@ pub const STANDARD_BUTTONS: GamingLayout = GamingLayout {
     stock_dpi_presets: &[],
 };
 
-const LAYOUTS: &[&GamingLayout] = &[&G502_LIGHTSPEED, &G903_LIGHTSPEED];
+const LAYOUTS: &[&GamingLayout] = &[&G502_LIGHTSPEED, &G502_HERO, &G903_LIGHTSPEED];
 
 /// Whether a device is a G-series mouse, and which buttons it offers. The
 /// agent, the tabs and the Buttons panel all ask this one verdict.
@@ -259,6 +271,62 @@ mod tests {
         assert!(!layout.remappable().any(|b| b == ButtonId::LeftClick));
         assert!(layout.needs_host_mode(ButtonId::G7));
         assert!(!layout.needs_host_mode(ButtonId::Back));
+    }
+
+    #[test]
+    fn wired_g502_hero_exposes_its_hardware_slots() {
+        use crate::device::{DeviceModelInfo, DeviceTransports};
+
+        let model = DeviceModelInfo {
+            entity_count: 2,
+            serial_number: None,
+            unit_id: [0; 4],
+            transports: DeviceTransports {
+                usb: true,
+                equad: false,
+                btle: false,
+                bluetooth: false,
+            },
+            model_ids: [0xc08b, 0, 0],
+            extended_model_id: 0,
+        };
+        let capabilities = Capabilities::from_feature_ids(&[0x2201, 0x8060, 0x8100, 0x8110]);
+        let Some(GamingButtons::Dumped(layout)) =
+            GamingButtons::for_device(&model.model_key(), Some(&capabilities))
+        else {
+            panic!("the wired G502 HERO should use HID++ button capture");
+        };
+
+        assert_eq!(
+            layout.buttons().collect::<Vec<_>>(),
+            [
+                ButtonId::LeftClick,
+                ButtonId::RightClick,
+                ButtonId::MiddleClick,
+                ButtonId::Back,
+                ButtonId::Forward,
+                ButtonId::G6,
+                ButtonId::G7,
+                ButtonId::G8,
+                ButtonId::G9,
+                ButtonId::WheelTiltRight,
+                ButtonId::WheelTiltLeft,
+            ]
+        );
+        assert_eq!(layout.remappable().count(), 9);
+        assert!(layout.needs_host_mode(ButtonId::G6));
+        assert!(layout.needs_host_mode(ButtonId::WheelTiltLeft));
+        assert!(!layout.needs_host_mode(ButtonId::Back));
+        assert_eq!(layout.stock_action(ButtonId::G6), Some(Action::DpiShift));
+        assert_eq!(
+            layout.stock_action(ButtonId::G7),
+            Some(Action::PreviousDpiPreset)
+        );
+        assert_eq!(
+            layout.stock_action(ButtonId::G8),
+            Some(Action::NextDpiPreset)
+        );
+        assert_eq!(layout.stock_dpi_presets, [1200, 2400, 3200, 6400]);
     }
 
     /// #2372: the purple G502 LIGHTSPEED reports extended model id 2, and
